@@ -10,9 +10,9 @@ interface SearchResult {
   date?: string;
 }
 
-// Z.AI Web Search API
+// Z.AI Web Search API (v4)
 async function searchZai(query: string, apiKey: string): Promise<SearchResult[]> {
-  const response = await fetch('https://api.z.ai/v1/web-search', {
+  const response = await fetch('https://api.z.ai/api/paas/v4/web_search', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -21,7 +21,7 @@ async function searchZai(query: string, apiKey: string): Promise<SearchResult[]>
     body: JSON.stringify({
       search_engine: 'search-prime',
       search_query: query,
-      count: 5,
+      count: 10,
     }),
   });
   
