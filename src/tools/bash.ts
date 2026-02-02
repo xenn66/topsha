@@ -237,7 +237,7 @@ export function executeCommand(
     const output = execSync(command, {
       cwd,
       encoding: 'utf-8',
-      timeout: 180000, // 3 min
+      timeout: 120000, // 2 min (matches global tool timeout)
       maxBuffer: 1024 * 1024 * 10,
     });
     

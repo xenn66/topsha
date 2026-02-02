@@ -87,7 +87,29 @@ function formatArgs(args: Record<string, any>): string {
   return parts.join(', ');
 }
 
-// Execute tool by name
+// Timeout for all tool executions (120 seconds)
+const TOOL_TIMEOUT_MS = 120 * 1000;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, toolName: string): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+  
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Tool ${toolName} timed out after ${timeoutMs / 1000}s`));
+    }, timeoutMs);
+  });
+  
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutId!);
+    return result;
+  } catch (e) {
+    clearTimeout(timeoutId!);
+    throw e;
+  }
+}
+
+// Execute tool by name (with 120s timeout)
 export async function execute(
   name: string, 
   args: Record<string, any>,
@@ -96,6 +118,31 @@ export async function execute(
   const argsStr = formatArgs(args);
   console.log(`[tool] ${name}(${argsStr})`);
   
+  try {
+    const result = await withTimeout(
+      executeInternal(name, args, ctx),
+      TOOL_TIMEOUT_MS,
+      name
+    );
+    
+    // Log result
+    const output = result.success ? (result.output?.slice(0, 80) || 'ok') : `ERROR: ${result.error?.slice(0, 60)}`;
+    console.log(`[tool] → ${output}${(result.output?.length || 0) > 80 ? '...' : ''}`);
+    
+    return result;
+  } catch (e: any) {
+    const errorMsg = e.message || 'Unknown error';
+    console.log(`[tool] → TIMEOUT: ${errorMsg}`);
+    return { success: false, error: `⏱️ ${errorMsg}` };
+  }
+}
+
+// Internal execute without timeout
+async function executeInternal(
+  name: string, 
+  args: Record<string, any>,
+  ctx: ToolContext
+): Promise<ToolResult> {
   let result: ToolResult;
   
   switch (name) {
@@ -166,10 +213,6 @@ export async function execute(
     default:
       result = { success: false, error: `Unknown tool: ${name}` };
   }
-  
-  // Log result
-  const output = result.success ? (result.output?.slice(0, 80) || 'ok') : `ERROR: ${result.error?.slice(0, 60)}`;
-  console.log(`[tool] → ${output}${(result.output?.length || 0) > 80 ? '...' : ''}`);
   
   return result;
 }
