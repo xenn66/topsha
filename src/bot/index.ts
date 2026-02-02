@@ -494,10 +494,23 @@ async function getSmartReaction(text: string, username: string): Promise<string>
   }
 }
 
+// Rate limit for reactions
+let lastReactionTime = 0;
+const MIN_REACTION_INTERVAL = 5000; // 5 seconds between reactions
+
 // Should we react to this message?
 function shouldReact(): boolean {
-  // React to ~35% of messages
-  return Math.random() < 0.35;
+  const now = Date.now();
+  // Rate limit: at least 5 seconds between reactions
+  if (now - lastReactionTime < MIN_REACTION_INTERVAL) {
+    return false;
+  }
+  // React to ~15% of messages
+  if (Math.random() < 0.15) {
+    lastReactionTime = now;
+    return true;
+  }
+  return false;
 }
 
 export function createBot(config: BotConfig) {
