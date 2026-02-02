@@ -2,9 +2,10 @@
  * run_command - Execute shell commands
  * Pattern: Action (run) + Object (command)
  * Security: Dangerous commands require user approval
+ * Background: Commands ending with & run in background
  */
 
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import { checkCommand, requestApproval } from '../approvals/index.js';
 
 // Callback for requesting approval from user
@@ -85,7 +86,37 @@ export async function execute(
     console.log(`[SECURITY] Command approved by user`);
   }
   
-  // Execute the command
+  // Check if command should run in background
+  const isBackground = /&\s*$/.test(args.command.trim()) || 
+                       args.command.includes('nohup');
+  
+  // Execute background commands with spawn (non-blocking)
+  if (isBackground) {
+    try {
+      // Remove trailing & for spawn
+      const cleanCmd = args.command.trim().replace(/&\s*$/, '').trim();
+      
+      const child = spawn('sh', ['-c', cleanCmd], {
+        cwd: workDir,
+        detached: true,
+        stdio: 'ignore',
+      });
+      
+      child.unref();
+      
+      return { 
+        success: true, 
+        output: `Started in background (PID: ${child.pid})` 
+      };
+    } catch (e: any) {
+      return { 
+        success: false, 
+        error: `Failed to start background process: ${e.message}` 
+      };
+    }
+  }
+  
+  // Execute regular commands with execSync (blocking)
   try {
     const output = execSync(args.command, {
       cwd: workDir,
