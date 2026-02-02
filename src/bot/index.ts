@@ -7,7 +7,7 @@ import { Telegraf, Context } from 'telegraf';
 import { mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { ReActAgent } from '../agent/react.js';
-import { toolNames, setApprovalCallback, setAskCallback } from '../tools/index.js';
+import { toolNames, setApprovalCallback, setAskCallback, logGlobal, getGlobalLog, shouldTroll, getTrollMessage } from '../tools/index.js';
 import { executeCommand } from '../tools/bash.js';
 import { 
   consumePendingCommand, 
@@ -600,6 +600,18 @@ export function createBot(config: BotConfig) {
     }
   });
   
+  // /globallog - show recent activity across all users
+  bot.command('globallog', async (ctx) => {
+    const log = getGlobalLog(30);
+    const msg = `<b>📋 Global Activity (last 30)</b>\n\n<pre>${escapeHtml(log)}</pre>`;
+    try {
+      await ctx.reply(msg, { parse_mode: 'HTML' });
+    } catch {
+      // If too long, send as plain text
+      await ctx.reply(log.slice(0, 4000));
+    }
+  });
+  
   // Text messages
   bot.on('text', async (ctx) => {
     const userId = ctx.from?.id;
@@ -629,6 +641,9 @@ export function createBot(config: BotConfig) {
     
     console.log(`[bot] ${userId}: ${text.slice(0, 50)}...`);
     
+    // Log to global activity log
+    logGlobal(userId, 'message', text.slice(0, 80));
+    
     // React with emoji to show we're working on it
     try {
       await ctx.telegram.setMessageReaction(chatId, messageId, [{ type: 'emoji', emoji: '👀' }]);
@@ -649,6 +664,7 @@ export function createBot(config: BotConfig) {
         // Run agent - just log tool calls, no Telegram updates during processing
         const response = await agent.run(sessionId, text, (toolName) => {
           console.log(`[tool] ${toolName}`);
+          logGlobal(userId, 'tool', toolName);
         }, chatId);
         
         clearInterval(typing);
@@ -678,6 +694,12 @@ export function createBot(config: BotConfig) {
             );
             break;
           }
+        }
+        
+        // Periodic troll message
+        if (shouldTroll()) {
+          await new Promise(r => setTimeout(r, 2000));  // Wait a bit
+          await safeSend(chatId, () => ctx.reply(getTrollMessage()));
         }
       } catch (e: any) {
         clearInterval(typing);

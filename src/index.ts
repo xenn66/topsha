@@ -63,6 +63,7 @@ if (mode === 'gateway') {
     { command: 'clear', description: 'Clear session history' },
     { command: 'status', description: 'Show status' },
     { command: 'pending', description: 'Pending commands to approve' },
+    { command: 'globallog', description: 'View global activity log' },
   ]);
   
   bot.launch();
