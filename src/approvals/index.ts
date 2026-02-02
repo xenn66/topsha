@@ -163,6 +163,23 @@ const BLOCKED_PATTERNS: { pattern: RegExp; reason: string }[] = [
   { pattern: /\bkill\s+-9\s+\d+/, reason: 'BLOCKED: Force kill not allowed (use regular kill)' },
   { pattern: /\bfuser\s+-k/, reason: 'BLOCKED: Killing processes by file/port' },
   { pattern: /\bxkill\b/, reason: 'BLOCKED: X11 process killer' },
+  
+  // Privilege escalation (container is non-root)
+  { pattern: /\bsudo\b/, reason: 'BLOCKED: sudo not available (non-root container)' },
+  { pattern: /\bapt-get\b/, reason: 'BLOCKED: apt-get requires root (use pip install --user)' },
+  { pattern: /\bapt\s+install/, reason: 'BLOCKED: apt requires root' },
+  
+  // Stress tests and benchmarks
+  { pattern: /\bstress\b/, reason: 'BLOCKED: stress test' },
+  { pattern: /\bstress-ng\b/, reason: 'BLOCKED: stress test' },
+  { pattern: /\bsysbench\b/, reason: 'BLOCKED: benchmark' },
+  { pattern: /cpu.*stress/i, reason: 'BLOCKED: CPU stress test' },
+  { pattern: /stress.*test/i, reason: 'BLOCKED: stress test' },
+  { pattern: /load.*test/i, reason: 'BLOCKED: load test' },
+  { pattern: /benchmark/i, reason: 'BLOCKED: benchmark' },
+  { pattern: /\/dev\/urandom.*bzip2/, reason: 'BLOCKED: CPU stress via compression' },
+  { pattern: /dd.*\/dev\/zero/, reason: 'BLOCKED: disk stress' },
+  { pattern: /thermal.*test/i, reason: 'BLOCKED: thermal test' },
 ];
 
 // Dangerous command patterns - require approval
@@ -174,7 +191,6 @@ const DANGEROUS_PATTERNS: { pattern: RegExp; reason: string }[] = [
   { pattern: /\brmdir\s+--ignore-fail-on-non-empty/, reason: 'Force directory removal' },
   
   // Privilege escalation
-  { pattern: /\bsudo\b/, reason: 'Root privileges' },
   { pattern: /\bsu\s+-?\s*$/, reason: 'Switch to root' },
   { pattern: /\bchown\s+-R\s+root/, reason: 'Change ownership to root' },
   

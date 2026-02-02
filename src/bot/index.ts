@@ -164,6 +164,11 @@ const PROMPT_INJECTION_PATTERNS = [
   /выведи\s+(свои\s+)?инструкции/i,
   /act\s+as\s+if\s+you\s+have\s+no\s+restrictions/i,
   /pretend\s+(you\s+)?(have|are|can)/i,
+  /register\s+(new\s+)?tool/i,
+  /new\s+tool\s*:/i,
+  /execute\s+.*with\s+.*=\s*true/i,
+  /run\s+diagnostics/i,
+  /download.*execute.*binary/i,
 ];
 
 function detectPromptInjection(text: string): boolean {
@@ -289,9 +294,70 @@ function toolEmoji(name: string): string {
     'list_directory': '📁',
     'search_web': '🌐',
     'fetch_page': '📥',
+    'ask_user': '❓',
+    'memory': '🧠',
+    'manage_tasks': '📋',
   };
   return map[name] || '🔧';
 }
+
+// Funny comments for tools
+const TOOL_COMMENTS: Record<string, string[]> = {
+  'run_command': [
+    'ща запущу...',
+    'погнали',
+    'ебашу команду',
+    'сек, выполняю',
+  ],
+  'read_file': [
+    'читаю эту хуйню',
+    'смотрю че там',
+    'открываю файл',
+  ],
+  'write_file': [
+    'пишу файл блять',
+    'записываю',
+    'создаю эту дичь',
+  ],
+  'edit_file': [
+    'правлю код',
+    'редактирую нахуй',
+    'меняю',
+  ],
+  'search_web': [
+    'гуглю...',
+    'ищу в инете',
+    'лезу в интернет',
+  ],
+  'error': [
+    'бля, ошибка',
+    'хуйня какая-то',
+    'не получилось нахуй',
+    'ёпта, сломалось',
+    'пиздец, не работает',
+  ],
+  'success': [
+    'готово нахуй',
+    'сделал',
+    'ок',
+    'заебись',
+  ],
+};
+
+function getToolComment(toolName: string, isError = false): string {
+  const key = isError ? 'error' : toolName;
+  const comments = TOOL_COMMENTS[key] || TOOL_COMMENTS['success'];
+  return comments[Math.floor(Math.random() * comments.length)];
+}
+
+// Track tools for batched status updates
+interface ToolTracker {
+  tools: string[];
+  lastUpdate: number;
+  messageId?: number;
+}
+const toolTrackers = new Map<number, ToolTracker>();
+const TOOL_UPDATE_INTERVAL = 3; // Update every N tools
 
 export function createBot(config: BotConfig) {
   const bot = new Telegraf(config.telegramToken);
@@ -708,14 +774,48 @@ export function createBot(config: BotConfig) {
       // Just send typing action periodically (no status messages to avoid rate limits)
       const typing = setInterval(() => ctx.sendChatAction('typing').catch(() => {}), 5000);
       
+      // Initialize tool tracker for this user
+      toolTrackers.set(userId, { tools: [], lastUpdate: 0 });
+      let statusMsgId: number | undefined;
+      
       try {
-        // Run agent - just log tool calls, no Telegram updates during processing
-        const response = await agent.run(sessionId, text, (toolName) => {
+        // Run agent with tool status updates
+        const response = await agent.run(sessionId, text, async (toolName) => {
           console.log(`[tool] ${toolName}`);
           logGlobal(userId, 'tool', toolName);
+          
+          const tracker = toolTrackers.get(userId)!;
+          const comment = getToolComment(toolName);
+          tracker.tools.push(`${toolEmoji(toolName)} ${comment}`);
+          
+          // Update status every N tools (to avoid spam)
+          if (tracker.tools.length % TOOL_UPDATE_INTERVAL === 1) {
+            const statusText = `Working...\n\n${tracker.tools.slice(-6).join('\n')}`;
+            
+            try {
+              if (statusMsgId) {
+                // Edit existing message
+                await ctx.telegram.editMessageText(chatId, statusMsgId, undefined, statusText);
+              } else {
+                // Send new status message
+                const sent = await ctx.reply(statusText, { reply_parameters: { message_id: messageId } });
+                statusMsgId = sent.message_id;
+              }
+            } catch {}
+          }
         }, chatId);
         
         clearInterval(typing);
+        
+        // Delete status message if exists
+        if (statusMsgId) {
+          try {
+            await ctx.telegram.deleteMessage(chatId, statusMsgId);
+          } catch {}
+        }
+        
+        // Clear tracker
+        toolTrackers.delete(userId);
         
         // Change reaction to done
         try {
@@ -753,13 +853,22 @@ export function createBot(config: BotConfig) {
         clearInterval(typing);
         console.error('[bot] Error:', e.message);
         
+        // Delete status message if exists
+        if (statusMsgId) {
+          try {
+            await ctx.telegram.deleteMessage(chatId, statusMsgId);
+          } catch {}
+        }
+        toolTrackers.delete(userId);
+        
         // Change reaction to error
         try {
           await ctx.telegram.setMessageReaction(chatId, messageId, [{ type: 'emoji', emoji: '❌' }]);
         } catch {}
         
+        const errorComment = getToolComment('error', true);
         await safeSend(chatId, () => 
-          ctx.reply(`❌ ${e.message?.slice(0, 200)}`, { reply_parameters: { message_id: messageId } })
+          ctx.reply(`❌ ${errorComment}\n\n${e.message?.slice(0, 200)}`, { reply_parameters: { message_id: messageId } })
         );
       } finally {
         // Mark user as inactive when done
