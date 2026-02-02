@@ -27,12 +27,14 @@ import * as memory from './memory.js';
 import * as sendFile from './sendFile.js';
 import * as message from './message.js';
 import * as meme from './meme.js';
+import * as scheduler from './scheduler.js';
 
 // Re-export callback setters
 export { setApprovalCallback } from './bash.js';
 export { setAskCallback } from './ask.js';
 export { setSendFileCallback } from './sendFile.js';
 export { setDeleteMessageCallback, setEditMessageCallback, recordBotMessage } from './message.js';
+export { setSendMessageCallback, setExecuteCommandCallback, startScheduler } from './scheduler.js';
 export { getMemoryForPrompt, logGlobal, getGlobalLog, shouldTroll, getTrollMessage, saveChatMessage, getChatHistory } from './memory.js';
 export { getChatHistory as getChatHistoryForPrompt } from './memory.js';
 
@@ -54,6 +56,7 @@ export const definitions = [
   sendFile.definition,
   message.definition,
   meme.definition,
+  scheduler.definition,
 ];
 
 // Tool names
@@ -208,6 +211,10 @@ async function executeInternal(
     
     case 'get_meme':
       result = await meme.execute(args as any);
+      break;
+    
+    case 'schedule_task':
+      result = await scheduler.execute(args as any, parseInt(ctx.sessionId || '0'), ctx.chatId || 0);
       break;
     
     default:

@@ -8,7 +8,7 @@ import { mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import OpenAI from 'openai';
 import { ReActAgent } from '../agent/react.js';
-import { toolNames, setApprovalCallback, setAskCallback, setSendFileCallback, setDeleteMessageCallback, setEditMessageCallback, recordBotMessage, logGlobal, getGlobalLog, shouldTroll, getTrollMessage, saveChatMessage } from '../tools/index.js';
+import { toolNames, setApprovalCallback, setAskCallback, setSendFileCallback, setDeleteMessageCallback, setEditMessageCallback, recordBotMessage, setSendMessageCallback, startScheduler, logGlobal, getGlobalLog, shouldTroll, getTrollMessage, saveChatMessage } from '../tools/index.js';
 import { executeCommand } from '../tools/bash.js';
 import { 
   consumePendingCommand, 
@@ -681,6 +681,14 @@ export function createBot(config: BotConfig) {
       return false;
     }
   });
+  
+  // Set up scheduler callback for sending messages
+  setSendMessageCallback(async (chatId, text) => {
+    await bot.telegram.sendMessage(chatId, text);
+  });
+  
+  // Start the task scheduler
+  startScheduler();
   
   // Handle EXECUTE button - runs the command
   bot.action(/^exec:(.+)$/, async (ctx) => {

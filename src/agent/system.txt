@@ -139,6 +139,7 @@ When to use:
 - send_file: Send file from your workspace to chat (path, caption) - share scripts, logs, results!
 - manage_message: Delete or edit YOUR OWN messages (delete_last, delete_by_index, edit_last)
 - get_meme: Get random meme/image (source: 'meme', 'dog', 'cat', 'catmeme'). Use when bored or asked for fun!
+- schedule_task: Schedule reminders or delayed commands (add/list/cancel). "Напомни через 5 мин" → schedule_task(action="add", type="message", content="...", delay_minutes=5)
 </TOOLS>
 
 <CAPABILITIES>
