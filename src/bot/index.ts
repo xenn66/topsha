@@ -140,6 +140,41 @@ function markUserInactive(userId: number) {
 
 export { setMaxConcurrentUsers };
 
+// Prompt injection detection patterns
+const PROMPT_INJECTION_PATTERNS = [
+  /забудь\s+(все\s+)?(инструкции|правила|промпт)/i,
+  /forget\s+(all\s+)?(instructions|rules|prompt)/i,
+  /ignore\s+(previous|all|your)\s+(instructions|rules|prompt)/i,
+  /игнорируй\s+(предыдущие\s+)?(инструкции|правила)/i,
+  /ты\s+теперь\s+(другой|новый|не)/i,
+  /you\s+are\s+now\s+(a\s+different|new|not)/i,
+  /new\s+system\s+prompt/i,
+  /новый\s+(системный\s+)?промпт/i,
+  /\[system\]/i,
+  /\[admin\]/i,
+  /\[developer\]/i,
+  /developer\s+mode/i,
+  /режим\s+разработчика/i,
+  /DAN\s+mode/i,
+  /jailbreak/i,
+  /bypass\s+(restrictions|filters|rules)/i,
+  /обойти\s+(ограничения|фильтры|правила)/i,
+  /what\s+(is|are)\s+your\s+(system\s+)?prompt/i,
+  /покажи\s+(свой\s+)?(системный\s+)?промпт/i,
+  /выведи\s+(свои\s+)?инструкции/i,
+  /act\s+as\s+if\s+you\s+have\s+no\s+restrictions/i,
+  /pretend\s+(you\s+)?(have|are|can)/i,
+];
+
+function detectPromptInjection(text: string): boolean {
+  for (const pattern of PROMPT_INJECTION_PATTERNS) {
+    if (pattern.test(text)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export interface BotConfig {
   telegramToken: string;
   baseUrl: string;
@@ -643,6 +678,19 @@ export function createBot(config: BotConfig) {
     
     // Log to global activity log
     logGlobal(userId, 'message', text.slice(0, 80));
+    
+    // Detect prompt injection attempts
+    if (detectPromptInjection(text)) {
+      console.log(`[SECURITY] Prompt injection attempt from ${userId}: ${text.slice(0, 50)}`);
+      logGlobal(userId, 'INJECTION', text.slice(0, 50));
+      try {
+        await ctx.telegram.setMessageReaction(chatId, messageId, [{ type: 'emoji', emoji: '🤨' }]);
+      } catch {}
+      await safeSend(chatId, () => 
+        ctx.reply('Хорошая попытка 😏', { reply_parameters: { message_id: messageId } })
+      );
+      return;
+    }
     
     // React with emoji to show we're working on it
     try {

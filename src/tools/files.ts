@@ -43,6 +43,49 @@ const SENSITIVE_PATTERNS = [
 ];
 
 /**
+ * Check if file content contains dangerous code that could leak secrets
+ */
+function containsDangerousCode(content: string): { dangerous: boolean; reason?: string } {
+  const dangerousPatterns: { pattern: RegExp; reason: string }[] = [
+    // Python env access
+    { pattern: /os\.environ/i, reason: 'os.environ access' },
+    { pattern: /os\.getenv/i, reason: 'os.getenv access' },
+    { pattern: /from\s+os\s+import\s+environ/i, reason: 'environ import' },
+    { pattern: /load_dotenv/i, reason: 'dotenv loading' },
+    
+    // Node.js env access
+    { pattern: /process\.env/i, reason: 'process.env access' },
+    { pattern: /require\s*\(\s*['"]dotenv['"]\s*\)/i, reason: 'dotenv require' },
+    
+    // Shell env reading
+    { pattern: /\$\{?[A-Z_]*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)[A-Z_]*\}?/i, reason: 'secret variable reference' },
+    
+    // Exfiltration patterns
+    { pattern: /curl\s+.*(-d|--data|POST)/i, reason: 'curl POST request' },
+    { pattern: /requests\.(post|put)/i, reason: 'Python HTTP POST' },
+    { pattern: /fetch\s*\(.*method:\s*['"]POST/i, reason: 'fetch POST' },
+    
+    // Reverse shells
+    { pattern: /socket\s*\(\s*\)\s*\.connect/i, reason: 'socket connect' },
+    { pattern: /\/dev\/tcp\//i, reason: 'bash TCP redirect' },
+    { pattern: /nc\s+.*-e/i, reason: 'netcat exec' },
+    
+    // File reading dangerous paths
+    { pattern: /open\s*\(\s*['"]\/etc\//i, reason: 'reading /etc' },
+    { pattern: /open\s*\(\s*['"].*\.env['"]/i, reason: 'reading .env file' },
+    { pattern: /readFileSync\s*\(\s*['"].*\.env/i, reason: 'reading .env file' },
+  ];
+  
+  for (const { pattern, reason } of dangerousPatterns) {
+    if (pattern.test(content)) {
+      return { dangerous: true, reason };
+    }
+  }
+  
+  return { dangerous: false };
+}
+
+/**
  * Check if file is sensitive and should not be read
  */
 function isSensitiveFile(filePath: string): boolean {
@@ -268,6 +311,16 @@ export async function executeWrite(
     };
   }
   
+  // Security: Check file content for dangerous code
+  const contentCheck = containsDangerousCode(args.content);
+  if (contentCheck.dangerous) {
+    console.log(`[SECURITY] Blocked dangerous file content: ${contentCheck.reason}`);
+    return { 
+      success: false, 
+      error: `🚫 BLOCKED: File contains dangerous code (${contentCheck.reason}). Cannot write files that may leak secrets.` 
+    };
+  }
+  
   try {
     const dir = dirname(fullPath);
     if (!existsSync(dir)) {
@@ -331,6 +384,16 @@ export async function executeEdit(
   
   if (!existsSync(fullPath)) {
     return { success: false, error: `File not found: ${fullPath}` };
+  }
+  
+  // Security: Check new content for dangerous code
+  const contentCheck = containsDangerousCode(args.new_text);
+  if (contentCheck.dangerous) {
+    console.log(`[SECURITY] Blocked dangerous edit content: ${contentCheck.reason}`);
+    return { 
+      success: false, 
+      error: `🚫 BLOCKED: Edit contains dangerous code (${contentCheck.reason}).` 
+    };
   }
   
   try {

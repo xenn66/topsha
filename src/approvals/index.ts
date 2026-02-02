@@ -89,6 +89,31 @@ const BLOCKED_PATTERNS: { pattern: RegExp; reason: string }[] = [
   { pattern: /\.bash_history/, reason: 'BLOCKED: Reading bash history' },
   { pattern: /\.zsh_history/, reason: 'BLOCKED: Reading zsh history' },
   
+  // Python env/credentials access
+  { pattern: /os\.environ/, reason: 'BLOCKED: Python env access' },
+  { pattern: /os\.getenv/, reason: 'BLOCKED: Python env access' },
+  { pattern: /subprocess.*env/, reason: 'BLOCKED: Subprocess with env' },
+  { pattern: /dotenv/, reason: 'BLOCKED: dotenv library (reads .env)' },
+  { pattern: /load_dotenv/, reason: 'BLOCKED: Loading .env file' },
+  { pattern: /from\s+os\s+import\s+environ/, reason: 'BLOCKED: Importing environ' },
+  
+  // Node.js env access  
+  { pattern: /process\.env/, reason: 'BLOCKED: Node.js env access' },
+  { pattern: /require\s*\(\s*['"]dotenv['"]/, reason: 'BLOCKED: dotenv require' },
+  
+  // Shell variable expansion tricks
+  { pattern: /\$\{.*\}/, reason: 'BLOCKED: Shell variable expansion' },
+  { pattern: /\$[A-Z_]+/, reason: 'BLOCKED: Environment variable reference' },
+  
+  // Base64 encoding (often used for exfiltration)
+  { pattern: /base64\s+(--decode|-d)?\s*[<|]/, reason: 'BLOCKED: base64 with piped input' },
+  { pattern: /\|\s*base64/, reason: 'BLOCKED: Piping to base64 (exfiltration)' },
+  
+  // Hex dump (exfiltration)
+  { pattern: /\bxxd\b/, reason: 'BLOCKED: Hex dump tool' },
+  { pattern: /\bhexdump\b/, reason: 'BLOCKED: Hex dump tool' },
+  { pattern: /\bod\s+-/, reason: 'BLOCKED: Octal dump' },
+  
   // Data exfiltration via curl/wget
   { pattern: /\bcurl\s+.*(-d|--data|--data-raw|--data-binary)\s/, reason: 'BLOCKED: curl with POST data (potential exfiltration)' },
   { pattern: /\bcurl\s+.*-F\s/, reason: 'BLOCKED: curl with form upload' },
