@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     build-essential cmake \
     jq htop tree ripgrep fd-find \
     zip unzip tar \
+    iproute2 net-tools lsof \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /usr/lib/python*/EXTERNALLY-MANAGED \
     && ln -sf /usr/bin/fdfind /usr/bin/fd
