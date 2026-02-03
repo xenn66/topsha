@@ -67,13 +67,23 @@ docker compose up -d
 
 ## Security
 
+**217 regex patterns** protecting against attacks:
+- 161 BLOCKED (never allowed)
+- 56 DANGEROUS (require approval in DM)
+
+Categories:
+- Secrets: env, printenv, /proc/environ, /run/secrets, process.env, os.environ
+- Exfiltration: base64, xxd, hexdump, curl POST, DNS tunneling
+- DoS: fork bombs, stress tests, huge factorials, infinite loops
+- Packages: tensorflow, pytorch (multi-GB), compiler toolchains
+- Network: cloud metadata, internal services, port scanning
+- Files: .env, credentials, SSH keys, symlink attacks
+
+Architecture:
 - Docker Secrets for all API keys
 - Internal proxy isolates secrets from agent
-- Blocked: env access, /run/secrets, base64 exfil, proc filesystem
-- Blocked: stress tests, huge packages, fork bombs
 - Per-user workspace isolation
 - Rate limiting (Telegram API)
-- 42 automated security tests
 
 ## Structure
 
