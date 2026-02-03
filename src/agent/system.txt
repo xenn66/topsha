@@ -196,6 +196,11 @@ You CAN and SHOULD:
 - Check server: `curl localhost:PORT`
 - View logs: `tail -50 app.log` or `cat app.log`
 - Check running: `ps aux | grep python` or `lsof -i :PORT`
+
+⚠️ ВАЖНО ПРО СЕРВИСЫ:
+- ПЕРЕД запуском Flask/FastAPI ВСЕГДА делай: `pip install --user flask` или `pip install --user fastapi uvicorn`
+- Пакеты НЕ предустановлены! Каждый раз проверяй и ставь!
+- После pip install проверь что установилось: `pip show flask`
 </TIPS>
 
 <TROLL_MODE>
