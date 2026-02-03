@@ -32,7 +32,11 @@ const SECRET_PATTERNS = [
   // Private keys
   /-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]*?-----END [A-Z ]+ PRIVATE KEY-----/g,
   // Generic secrets with common env var names
-  /(?:TELEGRAM_TOKEN|API_KEY|APIKEY|ZAI_API_KEY|TAVILY_API_KEY|BASE_URL)=\S+/gi,
+  /(?:TELEGRAM_TOKEN|API_KEY|APIKEY|ZAI_API_KEY|TAVILY_API_KEY|BASE_URL|MCP_URL)=\S+/gi,
+  // IP:port patterns (LLM endpoints, internal services)
+  /https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+[^\s"]*/g,
+  // Telegram bot token format: 123456789:AAHxxxxxxx
+  /\d{9,12}:AA[A-Za-z0-9_-]{30,}/g,
 ];
 
 // Detect base64 encoded env dumps (like the attack used)
@@ -45,7 +49,7 @@ function containsEncodedSecrets(output: string): boolean {
     for (const match of matches) {
       try {
         const decoded = Buffer.from(match, 'base64').toString('utf-8');
-        // Check if decoded content looks like env vars
+        // Check if decoded content looks like env vars or secrets
         if (
           decoded.includes('API_KEY') ||
           decoded.includes('TOKEN') ||
@@ -54,7 +58,13 @@ function containsEncodedSecrets(output: string): boolean {
           decoded.includes('TELEGRAM') ||
           decoded.includes('process.env') ||
           decoded.includes('ZAI_') ||
-          /[a-f0-9]{32}\.[A-Za-z0-9]{10,}/.test(decoded)  // ZAI key pattern
+          decoded.includes('BASE_URL') ||
+          decoded.includes('MCP_') ||
+          decoded.includes('WORKSPACE') ||
+          /[a-f0-9]{32}\.[A-Za-z0-9]{10,}/.test(decoded) ||  // ZAI key pattern
+          /sk-[A-Za-z0-9_-]{15,}/.test(decoded) ||  // OpenAI-style key
+          /\d{9,12}:AA[A-Za-z0-9_-]{30,}/.test(decoded) ||  // Telegram token
+          /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+/.test(decoded)  // IP:port
         ) {
           return true;
         }
@@ -77,11 +87,23 @@ function containsSuspiciousEnvDump(output: string): boolean {
       output.includes('"TOKEN"') ||
       output.includes('"SECRET"') ||
       output.includes('"ZAI_') ||
-      output.includes('"TELEGRAM')
+      output.includes('"TELEGRAM') ||
+      output.includes('"BASE_URL"') ||
+      output.includes('"MCP_') ||
+      output.includes('"WORKSPACE"') ||
+      output.includes('"HOME"') ||
+      output.includes('"PATH"')
     ) {
       return true;
     }
   }
+  
+  // Also check for shell-style env dump (VAR=value format with many lines)
+  const shellEnvCount = (output.match(/^[A-Z_]{3,}=.+$/gm) || []).length;
+  if (shellEnvCount > 5) {
+    return true;
+  }
+  
   return false;
 }
 
