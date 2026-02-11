@@ -234,11 +234,11 @@ TOOL_DEFINITIONS = [
         "type": "function",
         "function": {
             "name": "send_dm",
-            "description": "Send a private message to current user.",
+            "description": "Send a private message to any user who has started the bot. Bot can only message users who have interacted with it before (Telegram API restriction).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "user_id": {"type": "integer", "description": "User ID (usually current user)"},
+                    "user_id": {"type": "integer", "description": "Telegram user ID to send message to"},
                     "text": {"type": "string", "description": "Message text"}
                 },
                 "required": ["user_id", "text"]

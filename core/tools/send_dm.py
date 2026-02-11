@@ -21,11 +21,10 @@ async def tool_send_dm(args: dict, ctx: ToolContext) -> ToolResult:
     if not text:
         return ToolResult(False, error="text required")
     
-    # Security: only allow sending to the current user or explicit user_id
-    # Don't allow spamming random users
+    # Security: log DMs to other users for audit
+    # Bot can only send to users who have started it (Telegram API restriction)
     if user_id != ctx.user_id:
-        tool_logger.warning(f"DM to other user blocked: {user_id}")
-        return ToolResult(False, error="Can only send DM to yourself (security)")
+        tool_logger.info(f"Sending DM to another user: {user_id} (from {ctx.user_id})")
     
     callback_url = CONFIG.userbot_url if ctx.source == "userbot" else CONFIG.bot_url
     
