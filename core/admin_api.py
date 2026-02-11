@@ -1666,3 +1666,301 @@ async def restore_system_prompt():
         raise
     except Exception as e:
         raise HTTPException(500, f"Failed to restore: {e}")
+
+
+# ============ GOOGLE OAUTH ============
+
+GOOGLE_TOKENS_FILE = "/data/google_tokens.json"
+GOOGLE_MCP_CREDS_DIR = "/data/google_creds"  # Shared with google-workspace-mcp
+
+def _read_google_client_credentials():
+    """Read Google OAuth client credentials from Docker secrets
+    
+    Returns:
+        tuple: (client_id, client_secret) для OAuth авторизации
+    """
+    client_id = None
+    client_secret = None
+    
+    # Try to read client_id
+    for path in ["/run/secrets/gdrive_client_id", "/run/secrets/gdrive_client_id.txt"]:
+        if os.path.exists(path):
+            try:
+                with open(path) as f:
+                    client_id = f.read().strip()
+                break
+            except:
+                pass
+    
+    # Try to read client_secret
+    for path in ["/run/secrets/gdrive_client_secret", "/run/secrets/gdrive_client_secret.txt"]:
+        if os.path.exists(path):
+            try:
+                with open(path) as f:
+                    client_secret = f.read().strip()
+                break
+            except:
+                pass
+    
+    return client_id, client_secret
+
+
+def _load_google_tokens():
+    """Load saved Google OAuth tokens
+    
+    Returns:
+        dict: Сохранённые токены или None если не найдены
+    """
+    if os.path.exists(GOOGLE_TOKENS_FILE):
+        try:
+            with open(GOOGLE_TOKENS_FILE) as f:
+                return json.load(f)
+        except:
+            pass
+    return None
+
+
+def _save_google_tokens(tokens: dict):
+    """Save Google OAuth tokens в два места:
+    1. /data/google_tokens.json - для Admin UI статуса
+    2. /data/google_creds/{email}.json - для Google Workspace MCP
+    
+    Args:
+        tokens: Словарь с токенами и метаданными
+    """
+    # 1. Save for Admin UI status
+    os.makedirs(os.path.dirname(GOOGLE_TOKENS_FILE), exist_ok=True)
+    with open(GOOGLE_TOKENS_FILE, "w") as f:
+        json.dump(tokens, f, indent=2)
+    
+    # 2. Save in Google Workspace MCP format if email is known
+    email = tokens.get("email")
+    if email:
+        client_id, client_secret = _read_google_client_credentials()
+        
+        # Format expected by Google Workspace MCP credential_store.py
+        mcp_creds = {
+            "token": tokens.get("access_token"),
+            "refresh_token": tokens.get("refresh_token"),
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "scopes": tokens.get("scopes", []),
+            "expiry": datetime.fromtimestamp(tokens.get("expires_at", 0)).isoformat() if tokens.get("expires_at") else None
+        }
+        
+        os.makedirs(GOOGLE_MCP_CREDS_DIR, exist_ok=True)
+        mcp_creds_file = os.path.join(GOOGLE_MCP_CREDS_DIR, f"{email}.json")
+        with open(mcp_creds_file, "w") as f:
+            json.dump(mcp_creds, f, indent=2)
+
+
+def _delete_google_mcp_creds():
+    """Delete Google credentials from MCP directory"""
+    tokens = _load_google_tokens()
+    if tokens and tokens.get("email"):
+        mcp_creds_file = os.path.join(GOOGLE_MCP_CREDS_DIR, f"{tokens['email']}.json")
+        if os.path.exists(mcp_creds_file):
+            os.remove(mcp_creds_file)
+
+
+@router.get("/google/status")
+async def get_google_status():
+    """Get Google OAuth status"""
+    client_id, client_secret = _read_google_client_credentials()
+    tokens = _load_google_tokens()
+    
+    return {
+        "client_configured": bool(client_id and client_secret),
+        "client_id": client_id[:20] + "..." if client_id else None,
+        "authorized": bool(tokens and tokens.get("access_token")),
+        "email": tokens.get("email") if tokens else None,
+        "expires_at": tokens.get("expires_at") if tokens else None,
+        "scopes": tokens.get("scopes", []) if tokens else []
+    }
+
+
+@router.get("/google/auth-url")
+async def get_google_auth_url():
+    """Get Google OAuth authorization URL"""
+    client_id, _ = _read_google_client_credentials()
+    
+    if not client_id:
+        raise HTTPException(400, "Google OAuth client not configured. Add secrets/gdrive_client_id.txt")
+    
+    # Use localhost redirect - user will copy the code
+    redirect_uri = "http://localhost"
+    
+    # Scopes for Gmail, Calendar, Drive
+    scopes = [
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/drive.readonly",
+        "https://www.googleapis.com/auth/userinfo.email"
+    ]
+    
+    import urllib.parse
+    
+    params = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "scope": " ".join(scopes),
+        "response_type": "code",
+        "access_type": "offline",
+        "prompt": "consent"
+    }
+    
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+    
+    return {"auth_url": auth_url, "redirect_uri": redirect_uri}
+
+
+class GoogleAuthCode(BaseModel):
+    code: str
+
+
+@router.post("/google/authorize")
+async def authorize_google(data: GoogleAuthCode):
+    """Exchange authorization code for tokens"""
+    import urllib.request
+    import urllib.parse
+    
+    client_id, client_secret = _read_google_client_credentials()
+    
+    if not client_id or not client_secret:
+        raise HTTPException(400, "Google OAuth client not configured")
+    
+    # Exchange code for tokens
+    token_url = "https://oauth2.googleapis.com/token"
+    
+    params = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "code": data.code,
+        "grant_type": "authorization_code",
+        "redirect_uri": "http://localhost"
+    }
+    
+    try:
+        req = urllib.request.Request(
+            token_url,
+            data=urllib.parse.urlencode(params).encode(),
+            headers={"Content-Type": "application/x-www-form-urlencoded"}
+        )
+        
+        with urllib.request.urlopen(req, timeout=10) as response:
+            tokens = json.loads(response.read().decode())
+        
+        # Get user email
+        email = None
+        if tokens.get("access_token"):
+            try:
+                req = urllib.request.Request(
+                    "https://www.googleapis.com/oauth2/v2/userinfo",
+                    headers={"Authorization": f"Bearer {tokens['access_token']}"}
+                )
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    user_info = json.loads(response.read().decode())
+                    email = user_info.get("email")
+            except:
+                pass
+        
+        # Save tokens
+        tokens_to_save = {
+            "access_token": tokens.get("access_token"),
+            "refresh_token": tokens.get("refresh_token"),
+            "expires_in": tokens.get("expires_in"),
+            "expires_at": time.time() + tokens.get("expires_in", 3600),
+            "token_type": tokens.get("token_type"),
+            "email": email,
+            "scopes": tokens.get("scope", "").split(),
+            "created_at": datetime.now().isoformat()
+        }
+        
+        _save_google_tokens(tokens_to_save)
+        
+        return {
+            "success": True,
+            "email": email,
+            "expires_in": tokens.get("expires_in")
+        }
+        
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode() if e.fp else str(e)
+        raise HTTPException(400, f"Failed to authorize: {error_body}")
+    except Exception as e:
+        raise HTTPException(500, f"Authorization failed: {str(e)}")
+
+
+@router.post("/google/refresh")
+async def refresh_google_token():
+    """Refresh Google OAuth token"""
+    import urllib.request
+    import urllib.parse
+    
+    tokens = _load_google_tokens()
+    if not tokens or not tokens.get("refresh_token"):
+        raise HTTPException(400, "No refresh token available. Re-authorize.")
+    
+    client_id, client_secret = _read_google_client_credentials()
+    if not client_id or not client_secret:
+        raise HTTPException(400, "Google OAuth client not configured")
+    
+    params = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "refresh_token": tokens["refresh_token"],
+        "grant_type": "refresh_token"
+    }
+    
+    try:
+        req = urllib.request.Request(
+            "https://oauth2.googleapis.com/token",
+            data=urllib.parse.urlencode(params).encode(),
+            headers={"Content-Type": "application/x-www-form-urlencoded"}
+        )
+        
+        with urllib.request.urlopen(req, timeout=10) as response:
+            new_tokens = json.loads(response.read().decode())
+        
+        # Update tokens
+        tokens["access_token"] = new_tokens.get("access_token")
+        tokens["expires_in"] = new_tokens.get("expires_in")
+        tokens["expires_at"] = time.time() + new_tokens.get("expires_in", 3600)
+        tokens["refreshed_at"] = datetime.now().isoformat()
+        
+        _save_google_tokens(tokens)
+        
+        return {"success": True, "expires_in": new_tokens.get("expires_in")}
+        
+    except Exception as e:
+        raise HTTPException(500, f"Refresh failed: {str(e)}")
+
+
+@router.delete("/google/disconnect")
+async def disconnect_google():
+    """Remove Google OAuth tokens from both locations"""
+    _delete_google_mcp_creds()  # Remove from MCP directory first
+    if os.path.exists(GOOGLE_TOKENS_FILE):
+        os.remove(GOOGLE_TOKENS_FILE)
+    return {"success": True}
+
+
+@router.get("/google/tokens")
+async def get_google_tokens():
+    """Get current Google tokens for internal use (by MCP server)"""
+    tokens = _load_google_tokens()
+    if not tokens:
+        raise HTTPException(404, "Not authorized")
+    
+    # Check if expired and refresh
+    if tokens.get("expires_at", 0) < time.time() - 60:
+        try:
+            await refresh_google_token()
+            tokens = _load_google_tokens()
+        except:
+            pass
+    
+    return tokens

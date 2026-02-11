@@ -170,6 +170,16 @@ export const updatePrompt = (content) => fetchApi('/prompt', {
 })
 export const restorePrompt = () => fetchApi('/prompt/restore', { method: 'POST' })
 
+// Google OAuth
+export const getGoogleStatus = () => fetchApi('/google/status')
+export const getGoogleAuthUrl = () => fetchApi('/google/auth-url')
+export const authorizeGoogle = (code) => fetchApi('/google/authorize', {
+  method: 'POST',
+  body: JSON.stringify({ code })
+})
+export const refreshGoogleToken = () => fetchApi('/google/refresh', { method: 'POST' })
+export const disconnectGoogle = () => fetchApi('/google/disconnect', { method: 'DELETE' })
+
 // Export all as object for convenient imports
 export const api = {
   // Dashboard

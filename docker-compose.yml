@@ -192,6 +192,7 @@ services:
       - ./workspace:/workspace
       - ./workspace/_shared:/data  # Skills, shared data, and admin config
       - /var/run/docker.sock:/var/run/docker.sock
+      - google_workspace_creds:/data/google_creds  # Share Google credentials with MCP
     networks:
       - agent-net
     cap_drop:

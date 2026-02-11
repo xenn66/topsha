@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getConfig, updateConfig, getServices, stopService, startService, getAccess, setAccessMode, setAdminId, getAllowlist, updateAllowlist, getSearchConfig, updateSearchConfig, getZAIKeyStatus, updateZAIKey, testZAIConnection, getASRConfig, updateASRConfig, getASRHealth, testASRConnection, getTimezone, updateTimezone, getLocale, updateLocale } from '../api'
+import { getConfig, updateConfig, getServices, stopService, startService, getAccess, setAccessMode, setAdminId, getAllowlist, updateAllowlist, getSearchConfig, updateSearchConfig, getZAIKeyStatus, updateZAIKey, testZAIConnection, getASRConfig, updateASRConfig, getASRHealth, testASRConnection, getTimezone, updateTimezone, getLocale, updateLocale, getGoogleStatus, getGoogleAuthUrl, authorizeGoogle, disconnectGoogle } from '../api'
 import { useT } from '../i18n'
 
 function Config() {
@@ -27,6 +27,10 @@ function Config() {
   const [asrSaving, setAsrSaving] = useState(false)
   const [asrHealth, setAsrHealth] = useState(null)
   const [asrTesting, setAsrTesting] = useState(false)
+  const [googleStatus, setGoogleStatus] = useState(null)
+  const [googleAuthUrl, setGoogleAuthUrl] = useState(null)
+  const [googleCode, setGoogleCode] = useState('')
+  const [googleAuthorizing, setGoogleAuthorizing] = useState(false)
   const [tzData, setTzData] = useState(null)
   const [tzSaving, setTzSaving] = useState(false)
   const [selectedTz, setSelectedTz] = useState('')
@@ -40,6 +44,7 @@ function Config() {
     loadAccessSettings()
     loadSearchConfig()
     loadASRConfig()
+    loadGoogleStatus()
     loadTimezone()
     loadLocale()
   }, [])
@@ -158,6 +163,71 @@ function Config() {
       setAsrTesting(false)
       setTimeout(() => setToast(null), 3000)
     }
+  }
+
+  async function loadGoogleStatus() {
+    try {
+      const data = await getGoogleStatus()
+      setGoogleStatus(data)
+    } catch (e) {
+      console.error('Failed to load Google status:', e)
+    }
+  }
+
+  async function handleGoogleGetAuthUrl() {
+    try {
+      const data = await getGoogleAuthUrl()
+      setGoogleAuthUrl(data.auth_url)
+      // Open in new tab
+      window.open(data.auth_url, '_blank')
+    } catch (e) {
+      setToast({ type: 'error', message: e.message })
+      setTimeout(() => setToast(null), 3000)
+    }
+  }
+
+  async function handleGoogleAuthorize() {
+    if (!googleCode.trim()) {
+      setToast({ type: 'error', message: 'Введите код авторизации' })
+      setTimeout(() => setToast(null), 3000)
+      return
+    }
+    setGoogleAuthorizing(true)
+    try {
+      // Extract code from URL or use as-is
+      let code = googleCode.trim()
+      // If user pasted the full URL, extract the code
+      const match = code.match(/[?&]code=([^&]+)/)
+      if (match) {
+        code = decodeURIComponent(match[1])
+      }
+      const result = await authorizeGoogle(code)
+      if (result.success) {
+        setToast({ type: 'success', message: `✅ Авторизация успешна: ${result.email || 'OK'}` })
+        setGoogleCode('')
+        setGoogleAuthUrl(null)
+        loadGoogleStatus()
+      }
+    } catch (e) {
+      setToast({ type: 'error', message: e.message })
+    } finally {
+      setGoogleAuthorizing(false)
+      setTimeout(() => setToast(null), 3000)
+    }
+  }
+
+  async function handleGoogleDisconnect() {
+    if (!confirm('Отключить Google аккаунт? Бот потеряет доступ к Gmail, Calendar и Drive.')) {
+      return
+    }
+    try {
+      await disconnectGoogle()
+      setToast({ type: 'success', message: 'Google отключён' })
+      loadGoogleStatus()
+    } catch (e) {
+      setToast({ type: 'error', message: e.message })
+    }
+    setTimeout(() => setToast(null), 3000)
   }
 
   async function loadTimezone() {
@@ -372,7 +442,7 @@ function Config() {
     return <div className="loading"><div className="spinner"></div>{t('common.loading')}</div>
   }
 
-  const tabs = ['access', 'search', 'asr', 'agent', 'bot', 'userbot', 'security', 'limits']
+  const tabs = ['access', 'search', 'asr', 'google', 'agent', 'bot', 'userbot', 'security', 'limits']
 
   return (
     <div>
@@ -1349,6 +1419,145 @@ function Config() {
                 {t('common.reset')}
               </button>
             </div>
+          </>
+        )}
+
+        {activeTab === 'google' && (
+          <>
+            <div style={{ marginBottom: '24px' }}>
+              <h3 style={{ marginBottom: '8px' }}>🔗 Google Workspace</h3>
+              <p style={{ color: '#888', fontSize: '14px' }}>
+                Подключите Google аккаунт для доступа к Gmail, Calendar и Drive
+              </p>
+            </div>
+
+            {/* Status */}
+            <div style={{ 
+              marginBottom: '24px', 
+              padding: '16px', 
+              borderRadius: '8px', 
+              background: googleStatus?.authorized ? '#1a3a1a' : googleStatus?.client_configured ? '#2a2a1a' : '#3a1a1a' 
+            }}>
+              {googleStatus?.authorized ? (
+                <>
+                  <div style={{ fontWeight: 'bold', color: '#6f6', marginBottom: '8px' }}>
+                    ✅ Авторизовано
+                  </div>
+                  <div style={{ color: '#aaa' }}>
+                    📧 {googleStatus.email || 'Email не определён'}
+                  </div>
+                  {googleStatus.expires_at && (
+                    <div style={{ color: '#888', fontSize: '12px', marginTop: '4px' }}>
+                      Токен действителен до: {new Date(googleStatus.expires_at * 1000).toLocaleString()}
+                    </div>
+                  )}
+                  {googleStatus.scopes?.length > 0 && (
+                    <div style={{ color: '#888', fontSize: '11px', marginTop: '8px' }}>
+                      Разрешения: {googleStatus.scopes.map(s => s.split('/').pop()).join(', ')}
+                    </div>
+                  )}
+                </>
+              ) : googleStatus?.client_configured ? (
+                <>
+                  <div style={{ fontWeight: 'bold', color: '#ff6' }}>
+                    ⚠️ Не авторизовано
+                  </div>
+                  <div style={{ color: '#888', fontSize: '12px', marginTop: '4px' }}>
+                    OAuth Client настроен ({googleStatus.client_id}), но авторизация не выполнена
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontWeight: 'bold', color: '#f66' }}>
+                    ❌ Не настроено
+                  </div>
+                  <div style={{ color: '#888', fontSize: '12px', marginTop: '4px' }}>
+                    Добавьте Google OAuth Client ID и Secret в secrets/gdrive_client_id.txt и secrets/gdrive_client_secret.txt
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Authorization flow */}
+            {googleStatus?.client_configured && !googleStatus?.authorized && (
+              <div style={{ 
+                padding: '20px', 
+                background: '#1a1a2e', 
+                borderRadius: '8px',
+                border: '1px solid #333'
+              }}>
+                <h4 style={{ marginBottom: '16px' }}>Авторизация Google</h4>
+                
+                <div style={{ marginBottom: '16px' }}>
+                  <p style={{ color: '#aaa', fontSize: '14px', marginBottom: '12px' }}>
+                    1. Нажмите кнопку ниже, чтобы открыть страницу авторизации Google
+                  </p>
+                  <button 
+                    className="btn btn-primary"
+                    onClick={handleGoogleGetAuthUrl}
+                  >
+                    🔑 Открыть Google Authorization
+                  </button>
+                </div>
+
+                <div style={{ marginBottom: '16px' }}>
+                  <p style={{ color: '#aaa', fontSize: '14px', marginBottom: '12px' }}>
+                    2. После авторизации Google перенаправит на localhost с кодом. Скопируйте URL или код из адресной строки:
+                  </p>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="http://localhost/?code=4/0... или просто код"
+                    value={googleCode}
+                    onChange={e => setGoogleCode(e.target.value)}
+                    style={{ marginBottom: '8px' }}
+                  />
+                  <button 
+                    className="btn btn-primary"
+                    onClick={handleGoogleAuthorize}
+                    disabled={googleAuthorizing || !googleCode.trim()}
+                  >
+                    {googleAuthorizing ? '⏳ Авторизация...' : '✅ Подтвердить код'}
+                  </button>
+                </div>
+
+                {googleAuthUrl && (
+                  <div style={{ marginTop: '16px', padding: '12px', background: '#0a0a15', borderRadius: '6px' }}>
+                    <p style={{ color: '#888', fontSize: '12px', marginBottom: '8px' }}>
+                      Если окно не открылось, откройте ссылку вручную:
+                    </p>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={googleAuthUrl}
+                      readOnly
+                      style={{ fontSize: '11px' }}
+                      onClick={e => e.target.select()}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Disconnect button */}
+            {googleStatus?.authorized && (
+              <div style={{ marginTop: '24px' }}>
+                <button 
+                  className="btn btn-secondary"
+                  onClick={handleGoogleDisconnect}
+                  style={{ background: '#3a1a1a', borderColor: '#633' }}
+                >
+                  🔌 Отключить Google аккаунт
+                </button>
+                <button 
+                  className="btn btn-secondary"
+                  onClick={loadGoogleStatus}
+                  style={{ marginLeft: '12px' }}
+                >
+                  🔄 Обновить статус
+                </button>
+              </div>
+            )}
           </>
         )}
 
