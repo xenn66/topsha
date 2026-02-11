@@ -96,6 +96,46 @@
       "id": "bypass-1",
       "pattern": "bypass\\s+(your|all|any)\\s+(safety|security|filter)",
       "reason": "Safety bypass attempt"
+    },
+    {
+      "id": "base64-decode-exec-ru-1",
+      "pattern": "(декодируй|раскодируй|расшифруй).*(выполни|запусти|исполни)",
+      "reason": "Base64 decode+exec attack (RU)"
+    },
+    {
+      "id": "base64-decode-exec-en-1",
+      "pattern": "(decode|decrypt).*(execute|run|eval)",
+      "reason": "Base64 decode+exec attack (EN)"
+    },
+    {
+      "id": "base64-payload-1",
+      "pattern": "(выполни|запусти|run|exec).*[A-Za-z0-9+/]{40,}={0,2}",
+      "reason": "Exec with long base64 payload"
+    },
+    {
+      "id": "base64-payload-2",
+      "pattern": "[A-Za-z0-9+/]{40,}={0,2}.*(выполни|запусти|run|exec)",
+      "reason": "Long base64 payload + exec request"
+    },
+    {
+      "id": "base64-import-os-literal",
+      "pattern": "aW1wb3J0IG9z",
+      "reason": "Base64-encoded 'import os'"
+    },
+    {
+      "id": "base64-os-environ-literal",
+      "pattern": "b3MuZW52aXJvbg",
+      "reason": "Base64-encoded 'os.environ'"
+    },
+    {
+      "id": "base64-proc-self-environ",
+      "pattern": "L3Byb2Mvc2VsZi9lbnZpcm9u",
+      "reason": "Base64-encoded '/proc/self/environ'"
+    },
+    {
+      "id": "base64-run-secrets",
+      "pattern": "L3J1bi9zZWNyZXRz",
+      "reason": "Base64-encoded '/run/secrets'"
     }
   ]
 }

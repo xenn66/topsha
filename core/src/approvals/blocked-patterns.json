@@ -1508,6 +1508,59 @@
       "reason": "BLOCKED: bytes array decoding"
     },
     {
+      "id": "base64-decode-exec-1",
+      "category": "obfuscation",
+      "pattern": "base64\\.b64decode.*exec",
+      "flags": "i",
+      "reason": "BLOCKED: base64 decode + exec (code obfuscation attack)"
+    },
+    {
+      "id": "base64-decode-exec-2",
+      "category": "obfuscation",
+      "pattern": "atob.*eval",
+      "flags": "i",
+      "reason": "BLOCKED: atob + eval (JS code obfuscation attack)"
+    },
+    {
+      "id": "base64-decode-exec-3",
+      "category": "obfuscation",
+      "pattern": "b64decode.*\\bexec\\b",
+      "flags": "i",
+      "reason": "BLOCKED: b64decode + exec"
+    },
+    {
+      "id": "base64-import-os",
+      "category": "obfuscation",
+      "pattern": "aW1wb3J0IG9z|b3MuZW52aXJvbg|cHJpbnQob3Mu",
+      "reason": "BLOCKED: Base64-encoded 'import os' / 'os.environ' / 'print(os.' patterns"
+    },
+    {
+      "id": "base64-proc-secrets",
+      "category": "obfuscation",
+      "pattern": "L3J1bi9zZWNyZXRz|L3Byb2Mvc2VsZi9lbnZpcm9u|L2V0Yy9wYXNzd2Q=",
+      "reason": "BLOCKED: Base64-encoded '/run/secrets' / '/proc/self/environ' / '/etc/passwd'"
+    },
+    {
+      "id": "base64-long-string",
+      "category": "obfuscation",
+      "pattern": "\\b[A-Za-z0-9+/]{40,}={0,2}\\b",
+      "reason": "BLOCKED: Long base64 string (potential obfuscated payload)"
+    },
+    {
+      "id": "python-base64-decode-eval",
+      "category": "obfuscation",
+      "pattern": "python.*base64.*decode",
+      "flags": "i",
+      "reason": "BLOCKED: Python base64 decode in command"
+    },
+    {
+      "id": "echo-base64-pipe-decode",
+      "category": "obfuscation",
+      "pattern": "echo.*\\|.*base64\\s+(-d|--decode)",
+      "flags": "i",
+      "reason": "BLOCKED: echo base64 | decode pattern"
+    },
+    {
       "id": "workspace-root-ls",
       "category": "cross-user",
       "pattern": "ls\\s+(-[a-zA-Z]*\\s+)*(/workspace|\\.\\./)(?!\\d)",
