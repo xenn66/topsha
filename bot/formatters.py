@@ -35,6 +35,14 @@ def md_to_html(text: str) -> str:
     
     result = re.sub(r'`([^`]+)`', save_inline, result)
     
+    # Protect HTML link tags so they are not escaped (agent outputs <a href="...">text</a>)
+    html_links = []
+    def save_link(m):
+        idx = len(html_links)
+        html_links.append(m.group(0))
+        return f"\x00LINK{idx}\x00"
+    result = re.sub(r'<a\s+href="[^"]+"[^>]*>[\s\S]*?</a>', save_link, result)
+
     # Protect URLs
     urls = []
     def save_url(m):
@@ -72,6 +80,8 @@ def md_to_html(text: str) -> str:
         result = result.replace(f"\x00URL{i}\x00", url)
     for i, mention in enumerate(mentions):
         result = result.replace(f"\x00MENTION{i}\x00", mention)
+    for i, link in enumerate(html_links):
+        result = result.replace(f"\x00LINK{i}\x00", link)
     
     return result
 
