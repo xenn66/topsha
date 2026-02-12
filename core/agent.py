@@ -24,6 +24,39 @@ _userbot_available_cache = None
 _userbot_check_time = 0
 USERBOT_CHECK_TTL = 30  # seconds
 
+# Google tokens (admin-only, configured via Admin UI)
+GOOGLE_TOKENS_FILE = "/data/google_tokens.json"
+GOOGLE_MCP_CREDS_DIR = "/data/google_creds"
+
+
+def get_google_email() -> Optional[str]:
+    """Get authorized Google email (admin-only, single account per instance).
+    
+    Lookup order:
+    1. google_tokens.json (saved by Admin UI)
+    2. Scan google_creds/ for any .json file
+    """
+    try:
+        if os.path.exists(GOOGLE_TOKENS_FILE):
+            with open(GOOGLE_TOKENS_FILE) as f:
+                tokens = json.load(f)
+                email = tokens.get("email")
+                if email:
+                    return email
+    except:
+        pass
+    
+    # Fallback: scan google_creds/
+    try:
+        if os.path.exists(GOOGLE_MCP_CREDS_DIR):
+            for fname in os.listdir(GOOGLE_MCP_CREDS_DIR):
+                if fname.endswith(".json"):
+                    return fname[:-5]  # "user@gmail.com.json" -> "user@gmail.com"
+    except:
+        pass
+    
+    return None
+
 
 async def _check_userbot_available() -> bool:
     """Check if userbot is available (with caching)"""
@@ -636,6 +669,11 @@ async def run_agent(
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     workspace_info = f"\nUser: @{username} (id={user_id})\nWorkspace: {session.cwd}\nTime: {timestamp}\nSource: {source}"
     
+    # Add Google email if authorized (admin-only)
+    google_email = get_google_email()
+    if google_email:
+        workspace_info += f"\nGoogle: {google_email} (authorized, use as user_google_email for Google Workspace tools)"
+    
     messages = [{"role": "system", "content": system_prompt + workspace_info}]
     messages.extend(session.history)
     messages.append({"role": "user", "content": message})
@@ -656,9 +694,6 @@ async def run_agent(
     final_response = ""
     iteration = 0
     has_search_tool = False  # Track if search_web was called
-    
-    # Track dynamically loaded tools for this session
-    dynamic_tools = []
     
     agent_logger.info(f"Available tools for {chat_type}/{source}: {len(tool_definitions)} (lazy={use_lazy_loading})")
     
@@ -741,8 +776,20 @@ async def run_agent(
                 
                 agent_logger.info(f"[iter {iteration}] TOOL RESULT: success={tool_result.success}, output={len(tool_result.output or '')} chars, error={tool_result.error or 'none'}")
                 
-                # Handle dynamic tool loading - MCP tools are called directly, no need to load
-                # The execute_tool function handles mcp_* tools automatically
+                # Dynamic tool loading: merge new definitions into active toolkit
+                if name == "load_tools" and tool_result.success and tool_result.metadata:
+                    new_tools = tool_result.metadata.get("loaded_tools", [])
+                    if new_tools:
+                        existing_names = {t["function"]["name"] for t in tool_definitions}
+                        added = 0
+                        for t in new_tools:
+                            tname = t["function"]["name"]
+                            if tname not in existing_names:
+                                tool_definitions.append(t)
+                                existing_names.add(tname)
+                                added += 1
+                        if added:
+                            agent_logger.info(f"[iter {iteration}] Dynamic toolkit: +{added} tools → {len(tool_definitions)} total")
                 
                 # Track SECURITY violations only (not privilege/capability limits)
                 # Categories that are actual security threats vs just sandbox limitations

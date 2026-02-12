@@ -1,6 +1,7 @@
 """Common types for Core"""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
 
 
 @dataclass
@@ -9,6 +10,7 @@ class ToolResult:
     success: bool
     output: str = ""
     error: str = ""
+    metadata: Optional[dict] = None  # Optional metadata (e.g. loaded tool definitions)
 
 
 @dataclass

@@ -364,7 +364,11 @@ async def tool_search_tools(args: dict, ctx: ToolContext) -> ToolResult:
 
 
 async def tool_load_tools(args: dict, ctx: ToolContext) -> ToolResult:
-    """Load additional tools by name into current session"""
+    """Load additional tools by name into current session.
+    
+    Returns full tool definitions in metadata so agent loop can add them
+    to tool_definitions for subsequent LLM calls.
+    """
     import aiohttp
     
     names = args.get("names", [])
@@ -388,14 +392,29 @@ async def tool_load_tools(args: dict, ctx: ToolContext) -> ToolResult:
         not_found = data.get("not_found", [])
         
         if loaded:
-            # Store loaded tools in context for this session
-            # The agent will pick these up on next iteration
             loaded_names = [t["function"]["name"] for t in loaded]
             output = f"✅ Loaded {len(loaded)} tools: {', '.join(loaded_names)}"
             if not_found:
                 output += f"\n⚠️ Not found: {', '.join(not_found)}"
-            output += "\n\n💡 MCP tools are already available - just call them directly!"
-            return ToolResult(True, output=output)
+            
+            # Include full schemas in output so LLM sees parameters
+            for t in loaded:
+                fn = t["function"]
+                params = fn.get("parameters", {})
+                required = params.get("required", [])
+                props = params.get("properties", {})
+                output += f"\n\n📋 **{fn['name']}**"
+                output += f"\n  {fn.get('description', '')[:200]}"
+                if props:
+                    output += "\n  Parameters:"
+                    for pname, pdef in props.items():
+                        req_mark = " ⚠️REQUIRED" if pname in required else ""
+                        ptype = pdef.get("type", "any")
+                        pdesc = pdef.get("description", "")[:80]
+                        output += f"\n    • {pname} ({ptype}){req_mark}: {pdesc}"
+            
+            # Pass loaded definitions via metadata for agent loop to merge
+            return ToolResult(True, output=output, metadata={"loaded_tools": loaded})
         else:
             return ToolResult(False, error=f"No tools loaded. Not found: {', '.join(not_found)}")
     except Exception as e:

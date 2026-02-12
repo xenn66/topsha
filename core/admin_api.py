@@ -1679,6 +1679,7 @@ GOOGLE_TOKENS_FILE = "/data/google_tokens.json"
 GOOGLE_MCP_CREDS_DIR = "/data/google_creds"  # Shared with google-workspace-mcp
 GOOGLE_CLIENT_CREDS_FILE = "/data/google_client_credentials.json"  # User-configured credentials
 
+
 def _read_google_client_credentials():
     """Read Google OAuth client credentials (user-configured или fallback to Docker secrets)
     
@@ -2020,3 +2021,5 @@ async def get_google_tokens():
             pass
     
     return tokens
+
+
